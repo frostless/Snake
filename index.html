@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+        canvas {
+            border: 1px solid #d3d3d3;
+            background-color: #f1f1f1;
+        }
+    </style>
+</head>
+
+<body onload="startGame()">
+    <script>
+        let myNewSnakeCom;
+        let myScore;
+        let mySnakes = [];
+        let _gameSpeed = 20;
+        let _gameOver = false;
+        let _timeOut;
+        let _frameNo = 0;
+
+        const _canvasWidth = 720, _canvasHeight = 300, _canvasPosX = 0, _canvasPosY = 0;
+        const _snakeWidth = 30, _snakeHeight = 30, _snakePosx = 10, _snakePosY = (_canvasPosY + _canvasHeight) / 2 - _snakeHeight / 2;
+        const _crashingBuffer = 5;
+
+        function startGame() {
+
+            mySnakes[0] = new component(_snakeWidth, _snakeHeight, "blue", _snakePosx, _snakePosY);
+            let pos = getComponentPos();
+            let posX = pos[0];
+            let posY = pos[1];
+
+            myNewSnakeCom = new component(_snakeWidth, _snakeHeight, "green", posX, posY);
+            myScore = new component("30px", "Consolas", "black", 520, 40, "text");
+            myGameArea.start();
+        }
+
+        function cleanUp() {
+            myNewSnakeCom = myScore = null;
+            _gameSpeed = 20;
+            _gameOver = false;
+            _frameNo = 0;
+            mySnakes = [];
+        }
+
+        const myGameArea = {
+            canvas: document.createElement("canvas"),
+            ifPause: false,
+            start: function () {
+                this.ifPause = false;
+                this.canvas.width = _canvasWidth;
+                this.canvas.height = _canvasHeight;
+                this.context = this.canvas.getContext("2d");
+                document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+                this.frameNo = _frameNo ? _frameNo : 0;
+                this.interval = interval();
+            },
+            pause: function () {
+                this.ifPause = true;
+                clearTimeout(_timeOut);
+            },
+            clear: function () {
+                this.context.clearRect(_canvasPosX, _canvasPosY, this.canvas.width, this.canvas.height);
+            }
+        }
+
+        function component(width, height, color, x, y, type) {
+            this.type = type;
+            this.score = 0;
+            this.width = width;
+            this.height = height;
+            this.speedX = 1;
+            this.speedY = 0;
+            this.x = x;
+            this.y = y;
+            this.color = color;
+            this.direction = 0; // 0 is right, 1 is left, 2 is up, 3 is down
+
+            this.positions = [];
+
+            this.update = function () {
+                ctx = myGameArea.context;
+                if (this.type == "text") {
+                    ctx.font = this.width + " " + this.height;
+                    ctx.fillStyle = this.color;
+                    ctx.fillText(this.text, this.x, this.y);
+                } else {
+                    ctx.fillStyle = this.color;
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                }
+            }
+            this.newPos = function () {
+                this.x += this.speedX;
+                this.y += this.speedY;
+            }
+            this.crashWithCanvas = function () {
+                let crash = false;
+                let bottom = myGameArea.canvas.height - this.height;
+                let left = 0;
+                let right = myGameArea.canvas.width - this.width;
+                let up = 0;
+                if (this.y > bottom || this.y < up || this.x < left || this.x > right) {
+                    crash = true;
+                }
+                return crash;
+            }
+            this.collideWithObstacle = function (obj) {
+                if (!obj)
+                    return false;
+                //four directions
+                let crash = false;
+                if (this.speedX === 1) { // right
+                    // snake includes the object or the object includes the snake
+                    const verticalCollision1 = (this.y < (obj.y + obj.height) && (this.y + this.height > obj.y))
+                    const verticalCollision2 = (obj.y < (this.y + this.height) && (obj.y + obj.height) > this.y)
+                    const horizontalCollision = (this.x + this.width) > obj.x;
+                    const objectAtRight = this.x < obj.x;
+
+                    if ((verticalCollision1 || verticalCollision2) && horizontalCollision && objectAtRight) {
+                        crash = true;
+                    }
+
+                }
+
+                if (this.speedX === -1) { //left
+                    const verticalCollision1 = (this.y < (obj.y + obj.height) && (this.y + this.height > obj.y))
+                    const verticalCollision2 = (obj.y < (this.y + this.height) && (obj.y + obj.height) > this.y)
+                    const horizontalCollision = this.x < (obj.x + obj.width);
+                    const objectAtLeft = this.x > obj.x;
+
+                    if ((verticalCollision1 || verticalCollision2) && horizontalCollision && objectAtLeft) {
+                        crash = true;
+                    }
+                }
+
+                if (this.speedY === -1) { // up
+                    const horizontalCollision1 = (this.x < (obj.x + obj.width) && (this.x + this.width > obj.x));
+                    const horizontalCollision2 = (obj.x < (this.x + this.width) && (obj.x + obj.width > this.x));
+                    const verticalCollision = this.y < (obj.height + obj.y);
+                    const objectAtTop = this.y > obj.y;
+
+                    if ((horizontalCollision1 || horizontalCollision2) && verticalCollision && objectAtTop) {
+                        crash = true;
+                    }
+                }
+
+                if (this.speedY === 1) { //down
+                    const horizontalCollision1 = (this.x < (obj.x + obj.width) && (this.x + this.width > obj.x));
+                    const horizontalCollision2 = (obj.x < (this.x + this.width) && (obj.x + obj.width > this.x));
+                    const verticalCollision = (this.y + this.height) > obj.y
+                    const objectAtTop = this.y < obj.y;
+
+                    if ((horizontalCollision1 || horizontalCollision2) && verticalCollision && objectAtTop) {
+                        crash = true;
+                    }
+                }
+
+                return crash;
+            }
+
+            this.addPos = function (x, y, d) {
+                const length = this.positions.length;
+                if (length == 0 || (length > 0 && this.positions[length - 1].x != x && this.positions[length - 1].y != y))
+                    this.positions.push({ posX: x, posY: y, direction: d })
+            }
+
+            this.changeDirection = function (direction) {
+                // 0 is right, 1 is left, 2 is up, 3 is down
+                if (direction === 0) {
+                    this.speedX = 1;
+                    this.speedY = 0;
+                } else if (direction === 1) {
+                    this.speedX = -1;
+                    this.speedY = 0;
+                } else if (direction === 2) {
+                    this.speedX = 0;
+                    this.speedY = -1;
+                } else if (direction === 3) {
+                    this.speedX = 0;
+                    this.speedY = 1;
+                }
+                this.direction = direction;
+            }
+        }
+
+
+        function updateGameArea() {
+            if (mySnakes[0].crashWithCanvas()) {
+                _gameOver = true;
+                return;
+            }
+
+            if (checkWin()) {
+                myGameArea.pause();
+                _gameOver = true;
+                alert("congrats, you have won!")
+            }
+
+            if (crashWithSelf()) {
+                myGameArea.pause();
+                _gameOver = true;
+                return;
+            }
+
+            myGameArea.clear();
+            myGameArea.frameNo = _frameNo += 1;
+
+            myScore.text = "SCORE: " + myGameArea.frameNo;
+            myScore.update();
+
+            for (let i = 0; i < mySnakes.length; i++) {
+                if (i == 0)
+                    mySnakes[i].color = "blue"; //highligh the head
+                if (i > 0) {
+                    mySnakes[i].color = "red";
+                    if (mySnakes[i].positions.length > 0) {  // 0 is right, 1 is left, 2 is up, 3 is down
+                        // clear invalid positions
+                        while (mySnakes[i].positions.length > 0 && mySnakes[i].x == mySnakes[i].positions[0].posX && mySnakes[i].y == mySnakes[i].positions[0].posY) {
+                            mySnakes[i].positions.shift();
+                        }
+
+                        if (mySnakes[i].positions.length > 0) { // use recorded position
+                            if (mySnakes[i].positions[0].direction == 0) {
+                                mySnakes[i].speedX = 1;
+                                mySnakes[i].speedY = 0;
+                            } else if (mySnakes[i].positions[0].direction == 1) {
+                                mySnakes[i].speedX = -1;
+                                mySnakes[i].speedY = 0;
+                            } else if (mySnakes[i].positions[0].direction == 2) {
+                                mySnakes[i].speedX = 0;
+                                mySnakes[i].speedY = -1;
+                            } else if (mySnakes[i].positions[0].direction == 3) {
+                                mySnakes[i].speedX = 0;
+                                mySnakes[i].speedY = 1;
+                            }
+                        } else { // no recorded position
+                            if (mySnakes[i - 1].x > mySnakes[i].x) {
+                                mySnakes[i].speedX = 1;
+                                mySnakes[i].speedY = 0;
+                            } else if (mySnakes[i - 1].x < mySnakes[i].x) {
+                                mySnakes[i].speedX = -1;
+                                mySnakes[i].speedY = 0;
+                            } else if (mySnakes[i - 1].y < mySnakes[i].y) {
+                                mySnakes[i].speedX = 0;
+                                mySnakes[i].speedY = -1;
+                            } else if (mySnakes[i - 1].y > mySnakes[i].y) {
+                                mySnakes[i].speedX = 0;
+                                mySnakes[i].speedY = 1;
+                            }
+                        }
+                    }
+                }
+
+                mySnakes[i].newPos();
+                mySnakes[i].update();
+            }
+
+            if (mySnakes[0].collideWithObstacle(myNewSnakeCom)) {
+                let posX, posY;
+                if (mySnakes[0].speedX != 0) {
+                    posX = myNewSnakeCom.x;
+                    posY = mySnakes[0].y;
+                }
+                if (mySnakes[0].speedY != 0) {
+                    posY = myNewSnakeCom.y;
+                    posX = mySnakes[0].x;
+                }
+
+                let newHead = new component(_snakeWidth, _snakeHeight, "red", posX, posY);
+                newHead.speedX = mySnakes[0].speedX;
+                newHead.speedY = mySnakes[0].speedY;
+                newHead.direction = mySnakes[0].direction
+
+                // a hack to make the whole snake a pixel backward, otherwise overrlap with the head
+                for (let i = 0; i < mySnakes.length; i++) {
+                    if (mySnakes[i].speedX != 0)
+                        mySnakes[i].x -= mySnakes[i].speedX;
+                    else if (mySnakes[i].speedY != 0)
+                        mySnakes[i].y -= mySnakes[i].speedY;
+                }
+                mySnakes.unshift(newHead);
+                myNewSnakeCom = null;
+            }
+
+            if (myNewSnakeCom)
+                myNewSnakeCom.update();
+            else {
+                let pos = getComponentPos();
+                let posX = pos[0];
+                let posY = pos[1];
+                myNewSnakeCom = new component(_snakeWidth, _snakeHeight, "green", posX, posY);
+            }
+        }
+
+        //helpers
+        function interval() {
+            if (!_gameOver && !myGameArea.ifPause)
+                updateGameArea();
+
+            let speed = getSpeedFromScore();
+            _timeOut = setTimeout(interval, speed);
+        }
+
+        function getSpeedFromScore() {
+            let speed;
+            if (myGameArea.frameNo < 500)
+                speed = 20;
+            else if (myGameArea.frameNo < 1000)
+                speed = 19;
+            else if (myGameArea.frameNo < 1500)
+                speed = 18;
+            else if (myGameArea.frameNo < 2000)
+                speed = 17;
+            else if (myGameArea.frameNo < 2500)
+                speed = 16;
+            else if (myGameArea.frameNo < 3000)
+                speed = 15;
+            else if (myGameArea.frameNo < 3500)
+                speed = 14;
+            else if (myGameArea.frameNo < 4000)
+                speed = 13;
+            else if (myGameArea.frameNo < 4500)
+                speed = 12;
+            else if (myGameArea.frameNo < 5000)
+                speed = 11;
+            else if (myGameArea.frameNo < 7000)
+                speed = 5;
+            else if (myGameArea.frameNo < 9000)
+                speed = 3;
+            else
+                speed = 1;
+            return speed;
+        }
+
+        myGameArea.frameNo
+
+        function getComponentPos() {
+            let posX, posY;
+            let conflictWithSnake = false;
+            do {
+                posX = getRandomInt(_canvasPosX, _canvasPosX + _canvasWidth - _snakeWidth);
+                posY = getRandomInt(_canvasPosY, _canvasPosY + _canvasHeight - _snakeHeight);
+                for (let i = 0; i < mySnakes.length; i++) {
+                    if (posX > (mySnakes[i].x - _snakeWidth) &&
+                        posX < (mySnakes[i].x + _snakeWidth) &&
+                        posY > (mySnakes[i].y - _snakeHeight) &&
+                        posY < (mySnakes[i].y + _snakeHeight)
+                    ) {
+                        conflictWithSnake = true;
+                        break;
+                    }
+                    else
+                        conflictWithSnake = false;
+                }
+
+            }
+            while (conflictWithSnake)
+
+            return [posX, posY];
+        }
+
+        function crashWithSelf() {
+            let crash = false;
+            for (let i = 2; i < mySnakes.length; i++) {// the head is allowed to crash with the direct following snake
+                if (mySnakes[0].collideWithObstacle(mySnakes[i]))
+                    crash = true;
+            }
+            return crash;
+        }
+
+        function checkWin() {
+            let win = false;
+            if (mySnakes.length > 35)
+                win = true;
+            return win;
+        }
+
+        function everyinterval(n) {
+            if ((myGameArea.frameNo / n) % 1 == 0) { return true; }
+            return false;
+        }
+
+        function getRandomInt(min, max) {
+            min = Math.ceil(min);
+            max = Math.floor(max);
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function moveup() {
+            if (mySnakes[0].speedY === 1)
+                return;
+            const preDirection = mySnakes[0].direction;  //need to save the direction before the change
+            mySnakes[0].changeDirection(2);
+            if (mySnakes.length <= 1)
+                return;
+            for (let i = 1; i < mySnakes.length; i++) {
+                mySnakes[i].addPos(mySnakes[0].x, mySnakes[0].y, preDirection);
+            }
+        }
+
+        function movedown() {
+            if (mySnakes[0].speedY === -1)
+                return;
+            const preDirection = mySnakes[0].direction; //need to save the direction before the change
+            mySnakes[0].changeDirection(3);
+            if (mySnakes.length <= 1)
+                return;
+            for (let i = 1; i < mySnakes.length; i++) {
+                mySnakes[i].addPos(mySnakes[0].x, mySnakes[0].y, preDirection);
+            }
+        }
+
+        function moveleft() {
+            if (mySnakes[0].speedX === 1)
+                return;
+            const preDirection = mySnakes[0].direction; //need to save the direction before the change
+            mySnakes[0].changeDirection(1);
+            if (mySnakes.length <= 1)
+                return;
+            for (let i = 1; i < mySnakes.length; i++) {
+                mySnakes[i].addPos(mySnakes[0].x, mySnakes[0].y, preDirection);
+            }
+        }
+
+        function moveright() {
+            if (mySnakes[0].speedX === -1)
+                return;
+            const preDirection = mySnakes[0].direction; //need to save the direction before the change
+            mySnakes[0].changeDirection(0);
+            if (mySnakes.length <= 1)
+                return;
+            for (let i = 1; i < mySnakes.length; i++) {
+                mySnakes[i].addPos(mySnakes[0].x, mySnakes[0].y, preDirection);
+            }
+        }
+
+        function pause() {
+            myGameArea.pause();
+        }
+
+        function resume() {
+            if (!myGameArea.ifPause)
+                return;
+            myGameArea.start();
+        }
+
+        function restart() {
+            cleanUp();
+            myGameArea.pause();
+            myGameArea.clear();
+
+            startGame();
+        }
+
+        function checkKey(e) {
+            e = e || window.event;
+            if (e.keyCode === 37)
+                moveleft();
+            if (e.keyCode === 38)
+                moveup()
+            if (e.keyCode === 39)
+                moveright();
+            if (e.keyCode === 40)
+                movedown();
+        }
+        document.onkeydown = checkKey;
+
+    </script>
+    <br>
+
+    <button onclick="pause()">Pause</button>
+    <button onclick="resume()">Resume</button>
+    <button onclick="restart()">Restart</button><br>
+    <div style="text-align:center;width:480px;">
+        <button onclick="moveup()">UP</button><br><br>
+        <button onclick="moveleft()">LEFT</button>
+        <button onclick="moveright()">RIGHT</button><br><br>
+        <button onclick="movedown()">DOWN</button>
+    </div>
+</body>
+
+</html>
